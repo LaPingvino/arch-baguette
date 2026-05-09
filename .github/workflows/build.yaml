@@ -1,0 +1,78 @@
+name: Build Arch Baguette Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_user:
+        description: "Default user inside Arch guest"
+        required: true
+        default: "chronos"
+        type: string
+      target_password:
+        description: "Default user password inside Arch guest"
+        required: true
+        default: "12345687"
+        type: string
+      image_size:
+        description: "Raw BTRFS image size"
+        required: true
+        default: "30G"
+        type: string
+      artifact_retention_days:
+        description: "Artifact retention days"
+        required: true
+        default: "7"
+        type: string
+
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/build.yaml"
+      - "build-arch-baguette.sh"
+
+jobs:
+  build-x86_64:
+    name: Build x86_64 Arch Baguette image
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update Repository Source
+        run: |
+          sudo apt-get update
+
+      - name: Install build dependencies
+        run: "sudo apt-get install -y arch-install-scripts pacman-package-manager archlinux-keyring btrfs-progs qemu-utils zstd rsync git curl ca-certificates gnupg dirmngr"
+
+      - name: Build image
+        env:
+          TARGET_USER: ${{ inputs.target_user || 'chronos' }}
+          TARGET_PASSWORD: ${{ inputs.target_password || '12345687' }}
+          IMAGE_SIZE: ${{ inputs.image_size || '30G' }}
+          WORKDIR: ${{ github.workspace }}/build
+          OUTDIR: ${{ github.workspace }}/out
+        run: |
+          chmod +x ./build-arch-baguette.sh
+          ./build-arch-baguette.sh
+
+      - name: Rename output
+        run: |
+          mv out/baguette_arch_rootfs.img.zst "out/arch-baguette-x86_64.img.zst"
+          rm -f out/baguette_arch_rootfs.img.zst.sha256
+          sha256sum "out/arch-baguette-x86_64.img.zst" \
+            | tee "out/arch-baguette-x86_64.img.zst.sha256"
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: arch-baguette-x86_64
+          path: |
+            out/*.img.zst
+            out/*.sha256
+          retention-days: ${{ inputs.artifact_retention_days || '7' }}
+          if-no-files-found: error
+          compression-level: 0
