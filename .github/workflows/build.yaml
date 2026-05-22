@@ -16,7 +16,7 @@ on:
       image_size:
         description: "Raw BTRFS image size"
         required: true
-        default: "30G"
+        default: "90G"
         type: string
       artifact_retention_days:
         description: "Artifact retention days"
